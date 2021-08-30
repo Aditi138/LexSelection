@@ -102,7 +102,7 @@ python computeBertBaselineAccuracy.py \
 If you make use of this software for research purposes, we will appreciate citing the following:
 ```
 @inproceedings{chaudhary21emnlp,
-    title = {When is _Wall_ a _Pared_ and when a _Muro_?:Extracting Rules Governing Lexical Selections},
+    title = {When is Wall a Pared and when a Muro?:Extracting Rules Governing Lexical Selections},
     author = {Aditi Chaudhary and Kayo Yin and Antonios Anastasopoulos  and Graham Neubig},
     booktitle = {Conference on Empirical Methods in Natural Language Processing (EMNLP)},
     address = {Online},
