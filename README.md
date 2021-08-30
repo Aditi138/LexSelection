@@ -1,4 +1,4 @@
-### Lexical Selection ###
+First, we describe the method for identifying semantic subdivisions followed by the methods to extract human-understandable descriptions to help understand  when one lexical distinction to be used over the other.
 
 # Identifying Semantic Subdivisions
 Assuming the parallel data from English to target language has been lemmatized, POS tagged and parsed, run the following to extract English focus words:
