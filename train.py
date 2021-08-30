@@ -581,7 +581,7 @@ if __name__ == "__main__":
     all_train, all_test, required_columns = split_train_test(input_file)
     feature_index_data = pd.read_csv(token_nums_file, sep=',')
 
-    if args.split:#Splitting into train/test
+    if args.split:#Splitting data into train/test
         exit(-1)
 
 
