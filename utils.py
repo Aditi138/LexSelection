@@ -35,6 +35,8 @@ class FeatureLoader(object):
             return self.vocab2id[w]
 
 def gen_line(filename):
+    if not filename:
+        return None
     with open(filename) as f:
         for line in f:
             yield line.strip()
@@ -60,8 +62,20 @@ def removeStopWordsPunctuations(token):
 
 def parseAnalysis(info):
     info = info.strip().split(" ||| ")
-    lemma, head, deprel, feat, upos = info[0].lower().split(), info[1].split(), info[3].split(), info[2].split(), info[4].split()
-    return lemma, head, deprel, feat, upos
+    if len(info) == 2: #greek has lemma ||| text
+        lemma, text = info[0].lower().split(), info[1].lower().split()
+        return lemma, None, None, None, None, text
+    lemma, head, deprel, feat, upos, text = info[0].lower().split(), info[1].split(), info[3].split(), info[2].split(), info[4].split(), info[5].lower().split()
+    new_lemma = []
+    if len(lemma) != len(text):
+        return None, None, None,None, None,None
+    for num, lem in enumerate(lemma):
+        if '-pron-' in lem:
+            new_lemma.append(text[num])
+        else:
+            new_lemma.append(lem)
+
+    return new_lemma, head, deprel, feat, upos, text
 
 def parseAnalysisTarget(info, original, sent_num):
     info = info.lower().strip().split(" ||| ") #this input is from target spacy
@@ -94,18 +108,42 @@ def parseAnalysisTarget(info, original, sent_num):
 
     return aligned_lemma
 
-def readAnalysis(input_analysis):
-    lemmas, heads, deprels, feats, uposes = [],[],[],[],[]
-    with codecs.open(input_analysis, 'r', encoding='utf-8') as f_analysis:
-        lines = f_analysis.readlines()
-        for line_num, line in enumerate(lines):
-            lemma, head, deprel, feat, upos = parseAnalysis(line)
-            lemmas.append(lemma)
-            heads.append(head)
-            deprels.append(deprel)
-            feats.append(feat)
-            uposes.append(upos)
-        return lemmas, heads, deprels, feats, uposes
+
+def parseAnalysisSource(lemma, orig, original, sent_num, poses):
+    if len(lemma) == len(original): #The tokenization of lemma and the original is same so return lemma, spacy tokenization could be different
+        return lemma, poses
+
+    aligned_lemma = [""] * len(original)
+    index = 0
+    prev_index = -1
+    orig_index = 0
+    aligned_pos = [""] * len(original)
+
+    for token_num, tokenized_orig in enumerate(orig): #Iterating the tokenized text
+        if orig_index >= len(original):
+            break
+        token = original[orig_index]
+        if tokenized_orig in token or token in tokenized_orig:
+            aligned_lemma[index] = lemma[token_num]
+            aligned_pos[index] = poses[token_num]
+            found = True
+            prev_index = index
+            orig_index += 1
+            index += 1
+
+
+    for token_num, token in enumerate(aligned_lemma):
+        if token == "":
+            aligned_lemma[token_num] = original[token_num]
+            aligned_pos[token_num] = poses[token_num]
+
+    return aligned_lemma, aligned_pos
+
+def readAnalysis(info):
+    info = info.strip().split(" ||| ")
+    lemma, head, deprel, feat, upos = info[0].lower().split(), info[1].split(), info[3].split(), info[2].split(), \
+                                            info[4].split()
+    return lemma, head, deprel, feat, upos
 
 def parseAlignment(info):
     src_tgt_alignments = defaultdict(list)
@@ -380,3 +418,93 @@ def f_importances(coef, names):
     plt.barh(range(len(names)), imp, align='center')
     plt.yticks(range(len(names)), names)
     plt.show()
+
+
+def filter_words(source_pos_target_tokens, target_source_tokens, target_freq_threshold, fileprefix,combine_lemmas=False):
+    updated_source_pos_target_tokens = {}
+
+    unambig = 0
+    source_pos_tokens = defaultdict(lambda :0)
+
+    for (lemma, pos), tgt_words in source_pos_target_tokens.items():
+
+        normalized_tokens = []
+        tgt_tokens = []
+        freq_tokens = defaultdict(lambda: 0)
+        mwt = False
+        for tgt, count in tgt_words.items():
+            if count < target_freq_threshold:  # remove tgt translations which occur less than 5 times (alignment errors)
+                continue
+
+            if checkMultipleAlignments(tgt, target_source_tokens):
+                continue
+            mwt = mwt or len(tgt.split()) > 1
+
+            # if "..." in tgt or len(
+            #         tgt.split()) > 1 or tgt in lemma:  # Skip for multi-word translations and have same translation as source
+            #     continue
+            if "..." in tgt or tgt in lemma or lemma in tgt:  # Skip for multi-word translations and have same translation as source
+                continue
+            freq_tokens[tgt] = count
+            tgt_tokens.append(tgt)
+            normalized_tokens.append(unidecode.unidecode(tgt))
+
+
+        if len(tgt_tokens) < 1 and not mwt: #If a word has 1:1 mapping we skip it
+            unambig += 1
+            continue
+
+
+        if len(tgt_tokens) == 0:
+            continue
+        prev_tokens = [[tgt_tokens[0]]]
+        class_index = 0
+        for token_num in range(1, len(tgt_tokens)):
+            cur_token = tgt_tokens[token_num]
+            same_class = False
+            for prev_token in prev_tokens[class_index]:
+                paths = [prev_token, cur_token]
+                un_prev_token, un_cur_token = unidecode.unidecode(prev_token), unidecode.unidecode(cur_token)
+                paths = [un_prev_token, un_cur_token]
+                prefix = os.path.commonprefix(paths)
+                ed = editdistance.eval(un_prev_token, un_cur_token)
+                t = int(0.6 * len(un_cur_token))
+                if len(
+                        prefix) >= t or un_cur_token in un_prev_token or un_prev_token in un_cur_token:  # combine these classes together\
+                    same_class = True
+                    break
+
+            if combine_lemmas and same_class:
+                prev_tokens[class_index].append(cur_token)
+            else:
+                class_index += 1
+                prev_tokens.append([cur_token])
+
+        if len(prev_tokens) > 0:  # After compression there are mutliple tokens:
+            output = []
+            total_count = 0
+            for tgt_tokens in prev_tokens:
+                representation = "/".join(tgt_tokens)
+                count = 0
+                for t in tgt_tokens:
+                    count += freq_tokens[t]
+                    total_count += freq_tokens[t]
+                if count > 50:  # A target token should have more than 50 sentences
+                    output.append((representation, count))
+
+            if len(output) > 0:
+                updated_source_pos_target_tokens[(lemma, pos)] = {}
+                for (tgt_token, count) in output:
+                    updated_source_pos_target_tokens[(lemma, pos)][tgt_token] = count
+                    source_pos_tokens[(lemma, pos)] += count
+
+    print(f'Before: {len(source_pos_target_tokens)} After: {len(updated_source_pos_target_tokens)} Unambiguous tokens : {unambig}')
+
+    #Retained after filtering
+    with open(f"./allparallelwords_{fileprefix}.debug", 'w') as fout:
+        for (source,pos), tgt_tokens in updated_source_pos_target_tokens.items():
+            fout.write(source + "," + pos + "," + str(source_pos_tokens[(source,pos)]) + "-->\t")
+            for tgt_token, count in tgt_tokens.items():
+                fout.write(tgt_token + "= " + str(count) + "; ")
+            fout.write("\n")
+    return updated_source_pos_target_tokens, source_pos_tokens

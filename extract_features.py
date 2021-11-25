@@ -15,6 +15,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--input", type=str, default="/en-es/")
 parser.add_argument("--word", type=str, default='language_NOUN')
 parser.add_argument("--seed", type=int, default=1001)
+parser.add_argument("--remove_wsd", action="store_true", default=False, help="To remove WSD features set to True")
 
 args = parser.parse_args()
 
@@ -148,9 +149,10 @@ if __name__ == "__main__":
     lemmacols = ['head_lemma', 'dep_lemma', 'dep_lemma.1', 'dep_lemma.2', 'dep_lemma.3', 'dep_lemma.4', 'dep_lemma.5']
     createVocab(cols=lemmacols, vocab=LemmaVocab)
 
-    WSDvocab = FeatureLoader()
-    wsdcols = ['head_wsd', 'dep_wsd', 'dep_wsd.1', 'dep_wsd.2', 'dep_wsd.3', 'dep_wsd.4', 'dep_wsd.5']
-    createVocab(cols = wsdcols, vocab=WSDvocab)
+    if not args.remove_wsd:
+        WSDvocab = FeatureLoader()
+        wsdcols = ['head_wsd', 'dep_wsd', 'dep_wsd.1', 'dep_wsd.2', 'dep_wsd.3', 'dep_wsd.4', 'dep_wsd.5']
+        createVocab(cols = wsdcols, vocab=WSDvocab)
 
     LemmaBigramVocab = FeatureLoader()
     lemmabigramcols = ['lemma-bigram', 'lemma-bigram.1', 'lemma-bigram.2', 'lemma-bigram.3']
@@ -165,7 +167,8 @@ if __name__ == "__main__":
 
     pos_id2vocab = {v:k for k,v in POSVocab.vocab2id.items()}
     lemma_id2vocab = {v: k for k, v in LemmaVocab.vocab2id.items()}
-    wsd_id2vocab = {v: k for k, v in WSDvocab.vocab2id.items()}
+    if not args.remove_wsd:
+        wsd_id2vocab = {v: k for k, v in WSDvocab.vocab2id.items()}
     lemmabigram_id2vocab = {v: k for k, v in LemmaBigramVocab.vocab2id.items()}
     rel_id2vocab = {v: k for k, v in RelVocab.vocab2id.items()}
 
@@ -185,9 +188,10 @@ if __name__ == "__main__":
         nearby_lemma_features.append(f'{prefix}{lemma_id2vocab[i]}')
 
     nearby_wsd_features = []
-    prefix = 'wsd__'
-    for i in range(len(WSDvocab.vocab2id.keys())):
-        nearby_wsd_features.append(f'{prefix}{wsd_id2vocab[i]}')
+    if not args.remove_wsd:
+        prefix = 'wsd__'
+        for i in range(len(WSDvocab.vocab2id.keys())):
+            nearby_wsd_features.append(f'{prefix}{wsd_id2vocab[i]}')
 
     nearby_bigram_features  = []
     prefix = 'bigram__'
@@ -247,11 +251,12 @@ if __name__ == "__main__":
             token_id = d_token[col]
             nearby_bigram_features_tokens[bigram_id] = token_id
 
-        for col in wsdcols:
-            wsd_id = WSDvocab.addorGetId(d[col])
-            nearby_wsd_features_numpy[wsd_id] = 1  # If any of the wsd in the vicnity is active
-            token_id = d_token[col]
-            nearby_wsd_features_tokens[wsd_id] =  token_id
+        if not args.remove_wsd:
+            for col in wsdcols:
+                wsd_id = WSDvocab.addorGetId(d[col])
+                nearby_wsd_features_numpy[wsd_id] = 1  # If any of the wsd in the vicnity is active
+                token_id = d_token[col]
+                nearby_wsd_features_tokens[wsd_id] =  token_id
 
 
         all_features = head_pos_features_numpy + rel_features_numpy + nearby_lemma_features_numpy + nearby_bigram_features_numpy + nearby_wsd_features_numpy

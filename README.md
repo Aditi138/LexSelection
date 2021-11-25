@@ -1,10 +1,13 @@
 First, we describe the method for identifying semantic subdivisions followed by the methods to extract human-understandable descriptions to help understand  when one lexical distinction to be used over the other.
 
 # Identifying Semantic Subdivisions
+*** Update ***
+We have added a more generic function `extractAmbiguousWords_allow_mwt` which allows you to extract semantic subdivisions in either direction i.e. learn Spanish
+from English or learn English from Spanish.
+Further, we make the reliance of WSD features optional as for languages other than English they might be harder to obtain.
+
 Assuming the parallel data from English to target language has been lemmatized, POS tagged and parsed, run the following to extract English focus words:
 ```     DIR=/data/en-es/
-
-
         python extractAmbiguousWords.py \
         --orig_input $DIR/eng-spa.clean \
         --input $DIR/eng-spa.clean \
